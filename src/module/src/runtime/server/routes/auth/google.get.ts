@@ -5,6 +5,7 @@ import { withQuery } from 'ufo'
 import { generateOAuthState, requestAccessToken, validateOAuthState } from '../../utils/auth'
 import { setInternalStudioUserSession } from '../../utils/session'
 import { mergeConfig } from '../../utils/object'
+import { isGoogleModerator, parseModeratorsRegex } from '../../utils/moderators'
 
 const logger = consola.withTag('Nuxt Studio')
 
@@ -15,6 +16,7 @@ export interface GoogleUser {
   family_name: string
   picture: string
   email: string
+  email_verified?: boolean
 }
 
 export interface OAuthGoogleConfig {
@@ -189,11 +191,20 @@ export default eventHandler(async (event: H3Event) => {
 
   const moderators = studioConfig?.auth?.google?.moderators?.split(',').filter(Boolean) || []
 
-  if (!moderators.includes(user.email)) {
-    if (import.meta.dev && moderators.length === 0) {
+  let moderatorsRegex: RegExp | undefined
+  try {
+    moderatorsRegex = parseModeratorsRegex(studioConfig?.auth?.google?.moderatorsRegex)
+  }
+  catch (error) {
+    logger.error(`Invalid \`NUXT_STUDIO_AUTH_GOOGLE_MODERATORS_REGEX\`, ignoring it: ${(error as Error).message}`)
+  }
+
+  if (!isGoogleModerator(user, moderators, moderatorsRegex)) {
+    if (import.meta.dev && moderators.length === 0 && !moderatorsRegex) {
       logger.warn([
         'No moderators defined. Moderators are required for Google authentication.',
-        'Please set the `NUXT_STUDIO_AUTH_GOOGLE_MODERATORS` environment variable to a comma-separated list of email addresses of the moderators.',
+        'Please set the `NUXT_STUDIO_AUTH_GOOGLE_MODERATORS` environment variable to a comma-separated list of email addresses of the moderators,',
+        'and/or the `NUXT_STUDIO_AUTH_GOOGLE_MODERATORS_REGEX` environment variable to a regex matched against their email address.',
       ].join('\n'))
     }
 

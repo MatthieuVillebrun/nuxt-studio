@@ -275,8 +275,8 @@ export interface ModuleOptions {
     /**
      * The Google OAuth credentials.
      * Note: When using Google OAuth, you must set NUXT_STUDIO_AUTH_GOOGLE_MODERATORS to a comma-separated
-     * list of authorized email addresses, and either NUXT_STUDIO_GIT_GITHUB_TOKEN or NUXT_STUDIO_GIT_GITLAB_TOKEN
-     * to push changes to your repository.
+     * list of authorized email addresses and/or NUXT_STUDIO_AUTH_GOOGLE_MODERATORS_REGEX, and either
+     * NUXT_STUDIO_GIT_GITHUB_TOKEN or NUXT_STUDIO_GIT_GITLAB_TOKEN to push changes to your repository.
      */
     google?: {
       /**
@@ -295,6 +295,13 @@ export interface ModuleOptions {
        * @default NUXT_STUDIO_AUTH_GOOGLE_MODERATORS
        */
       moderators?: string
+      /**
+       * Regular expression matched against the user email, in addition to `moderators`.
+       * Matching is case-insensitive and only applies to verified Google emails.
+       * Anchor the pattern (e.g. `@example\.com$`), otherwise `example.com` also matches `example.com.evil.io`.
+       * @default NUXT_STUDIO_AUTH_GOOGLE_MODERATORS_REGEX
+       */
+      moderatorsRegex?: string
     }
     /**
      * SSO server credentials for Single Sign-On across multiple Nuxt Studio sites.
@@ -576,6 +583,7 @@ export default defineNuxtModule<ModuleOptions>({
           clientSecret: options.auth?.google?.clientSecret || '',
           redirectUrl: '',
           moderators: '',
+          moderatorsRegex: options.auth?.google?.moderatorsRegex || '',
         },
         sso: {
           serverUrl: options.auth?.sso?.serverUrl || '',

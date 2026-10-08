@@ -37,6 +37,7 @@ export default defineEventHandler((event) => {
     google.clientId = google.clientId || process.env.STUDIO_GOOGLE_CLIENT_ID || ''
     google.clientSecret = google.clientSecret || process.env.STUDIO_GOOGLE_CLIENT_SECRET || ''
     google.moderators = google.moderators || process.env.STUDIO_GOOGLE_MODERATORS || ''
+    google.moderatorsRegex = google.moderatorsRegex || process.env.STUDIO_GOOGLE_MODERATORS_REGEX || ''
     google.redirectUrl = google.redirectUrl || process.env.STUDIO_GOOGLE_REDIRECT_URL || ''
   }
 

@@ -17,13 +17,14 @@ export function validateAuthConfig(options: ModuleOptions): void {
   }
 
   if (hasGoogleAuth) {
-    const hasGoogleModeratorsInConfig = (options.auth?.google as { moderators?: string })?.moderators
+    const hasGoogleModeratorsInConfig = options.auth?.google?.moderators || options.auth?.google?.moderatorsRegex
     if (!hasGoogleModeratorsInConfig) {
       logger.warn([
         'Google OAuth moderators are required when using Google OAuth.',
         'Set `auth.google.moderators` in nuxt.config.ts or supply `NUXT_STUDIO_AUTH_GOOGLE_MODERATORS`',
-        '(comma-separated list of allowed email addresses) at runtime.',
-        'Only users with these email addresses will be able to access Studio with Google OAuth.',
+        '(comma-separated list of allowed email addresses) at runtime, and/or set `auth.google.moderatorsRegex`',
+        'or `NUXT_STUDIO_AUTH_GOOGLE_MODERATORS_REGEX` (regex matched against the user email).',
+        'Only users matching these moderators will be able to access Studio with Google OAuth.',
       ].join('\n'))
     }
     logger.info([
