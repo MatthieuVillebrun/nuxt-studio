@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { dataUrlToBlob, isMediaTypeAllowed, mediaItemFieldsFromKey } from '../../src/runtime/utils/media'
+import { dataUrlToBlob, isMediaTypeAllowed, mediaItemFieldsFromKey, parseDataUrl } from '../../src/runtime/utils/media'
 
 describe('mediaItemFieldsFromKey', () => {
   it('should derive fields from a root-level key', () => {
@@ -64,7 +64,25 @@ describe('isMediaTypeAllowed', () => {
     expect(isMediaTypeAllowed('application/pdf', ['image/*', 'video/*'])).toBe(false)
   })
 
+  it('should match everything with a full wildcard', () => {
+    expect(isMediaTypeAllowed('application/pdf', ['*/*'])).toBe(true)
+  })
+
+  it('should ignore case', () => {
+    expect(isMediaTypeAllowed('Image/PNG', ['image/*'])).toBe(true)
+  })
+
   it('should reject everything when no type is allowed', () => {
     expect(isMediaTypeAllowed('image/png', [])).toBe(false)
+  })
+})
+
+describe('parseDataUrl', () => {
+  it('should drop data URL parameters from the media type', () => {
+    expect(parseDataUrl('data:text/plain;charset=utf-8;base64,aGk=')).toEqual({ mimeType: 'text/plain', base64: 'aGk=' })
+  })
+
+  it('should return undefined for a data URL that is not base64', () => {
+    expect(parseDataUrl('data:text/plain,hello')).toBeUndefined()
   })
 })

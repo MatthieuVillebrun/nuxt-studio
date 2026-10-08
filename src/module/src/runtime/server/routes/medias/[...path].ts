@@ -2,7 +2,7 @@ import { joinURL, withLeadingSlash } from 'ufo'
 import { createError, eventHandler, getRequestHeader, readBody, readRawBody } from 'h3'
 import { useRuntimeConfig } from '#imports'
 import { VIRTUAL_MEDIA_COLLECTION_NAME } from '../../../utils/constants'
-import { isMediaTypeAllowed } from '../../../utils/media'
+import { base64ToBytes, isMediaTypeAllowed, parseDataUrl } from '../../../utils/media'
 import { requireStudioAuth } from '../../utils/auth'
 import { blob } from 'hub:blob'
 
@@ -60,7 +60,7 @@ export default eventHandler(async (event) => {
     const maxFileSizeMessage = `File size exceeds maximum of ${maxFileSize / 1024 / 1024}MB`
 
     // Raw bytes upload (current clients): the content type is the media type
-    const contentType = getRequestHeader(event, 'content-type')?.split(';')[0]!.trim() || ''
+    const contentType = getRequestHeader(event, 'content-type')?.split(';')[0]!.trim().toLowerCase() || ''
     if (contentType && contentType !== 'application/json') {
       // Reject before reading the body when the declared size is already too large
       const contentLength = Number(getRequestHeader(event, 'content-length'))
@@ -90,25 +90,22 @@ export default eventHandler(async (event) => {
       await blob.put(pathname, JSON.stringify(body), { contentType: 'application/json' })
     }
     else {
-      const raw = body.raw as string
-      const [meta, data] = raw.split(';base64,')
-      const mimeType = meta!.replace('data:', '')
+      const parsed = typeof body.raw === 'string' ? parseDataUrl(body.raw) : undefined
+      if (!parsed) {
+        throw createError({ statusCode: 400, message: 'Invalid data URL' })
+      }
 
-      const approximateSize = (data!.length * 3) / 4
+      const approximateSize = (parsed.base64.length * 3) / 4
       if (approximateSize > maxFileSize) {
         throw createError({ statusCode: 413, message: maxFileSizeMessage })
       }
 
+      const { mimeType } = parsed
       if (!isMediaTypeAllowed(mimeType, allowedTypes)) {
         throw createError({ statusCode: 415, message: `File type "${mimeType}" is not allowed` })
       }
 
-      const binaryString = atob(data!)
-      const bytes = new Uint8Array(binaryString.length)
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i)!
-      }
-
+      const bytes = base64ToBytes(parsed.base64)
       await blob.put(pathname, bytes, { contentType: mimeType })
     }
 
