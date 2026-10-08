@@ -1,7 +1,8 @@
 import { joinURL, withLeadingSlash } from 'ufo'
-import { createError, eventHandler, readBody } from 'h3'
+import { createError, eventHandler, getRequestHeader, readBody, readRawBody } from 'h3'
 import { useRuntimeConfig } from '#imports'
 import { VIRTUAL_MEDIA_COLLECTION_NAME } from '../../../utils/constants'
+import { isMediaTypeAllowed } from '../../../utils/media'
 import { requireStudioAuth } from '../../utils/auth'
 import { blob } from 'hub:blob'
 
@@ -54,10 +55,37 @@ export default eventHandler(async (event) => {
 
   // PUT => upload media file
   if (event.method === 'PUT') {
-    const body = await readBody(event)
     const blobPath = key.replace(/:/g, '/')
     const pathname = prefix ? `${prefix}/${blobPath}` : blobPath
+    const maxFileSizeMessage = `File size exceeds maximum of ${maxFileSize / 1024 / 1024}MB`
 
+    // Raw bytes upload (current clients): the content type is the media type
+    const contentType = getRequestHeader(event, 'content-type')?.split(';')[0]!.trim() || ''
+    if (contentType && contentType !== 'application/json') {
+      // Reject before reading the body when the declared size is already too large
+      const contentLength = Number(getRequestHeader(event, 'content-length'))
+      if (contentLength > maxFileSize) {
+        throw createError({ statusCode: 413, message: maxFileSizeMessage })
+      }
+
+      if (!isMediaTypeAllowed(contentType, allowedTypes)) {
+        throw createError({ statusCode: 415, message: `File type "${contentType}" is not allowed` })
+      }
+
+      const bytes = await readRawBody(event, false)
+      if (!bytes?.byteLength) {
+        throw createError({ statusCode: 400, message: 'Empty file' })
+      }
+      if (bytes.byteLength > maxFileSize) {
+        throw createError({ statusCode: 413, message: maxFileSizeMessage })
+      }
+
+      await blob.put(pathname, bytes, { contentType: contentType })
+      return 'OK'
+    }
+
+    // JSON body: folder placeholders, and base64 data URLs from older cached clients
+    const body = await readBody(event)
     if (!body.raw) {
       await blob.put(pathname, JSON.stringify(body), { contentType: 'application/json' })
     }
@@ -68,10 +96,10 @@ export default eventHandler(async (event) => {
 
       const approximateSize = (data!.length * 3) / 4
       if (approximateSize > maxFileSize) {
-        throw createError({ statusCode: 413, message: `File size exceeds maximum of ${maxFileSize / 1024 / 1024}MB` })
+        throw createError({ statusCode: 413, message: maxFileSizeMessage })
       }
 
-      if (!allowedTypes.some((t: string) => mimeType.startsWith(t.replace('*', '')))) {
+      if (!isMediaTypeAllowed(mimeType, allowedTypes)) {
         throw createError({ statusCode: 415, message: `File type "${mimeType}" is not allowed` })
       }
 
